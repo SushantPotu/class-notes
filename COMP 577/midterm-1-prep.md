@@ -74,6 +74,8 @@ Full lecture notes referencing this exam's topics:
 - [2026-09-08-evaluation-and-image-warping.md](2026-09-08-evaluation-and-image-warping.md) — TP/FP rates, ROC/AUC, linear/affine/homography transforms
 - [2026-09-15-ransac-and-blending.md](2026-09-15-ransac-and-blending.md) — solving for affine/homography transforms, RANSAC, panorama blending
 
+**Not on Midterm 1:** the Sep 17 lecture ([2026-09-17-image-classification-fundamentals.md](2026-09-17-image-classification-fundamentals.md)) starts the next section; the professor said it is for the next exam. (Its ROC/TP/FP evaluation ideas do overlap with Question 3 material from Sep 8.)
+
 ## Support
 
 - Professor's office hours: **Thursday**.
