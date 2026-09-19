@@ -67,6 +67,47 @@ Next Tuesday (i.e. **September 22, 2026**, based on the Sep 15 lecture date).
 3. When checking your work with an AI tool, **verify your steps, not just the final answer** — it's possible to get a correct final number with flawed reasoning.
 4. If stuck, ask an AI tool for a **hint** first rather than a full solution, and try again before asking for the complete answer.
 
+## Topic Checklist by Question
+
+*(My own mapping of the professor's question list onto the notes; check each item against the slides' recap sections.)*
+
+- **Q1 — Filtering.** No lecture recordings exist before Sep 3, so these notes have no filtering coverage from class. See [filtering-primer.md](filtering-primer.md) (general background, not from lecture) and rely on the slides and the practice midterm. Related items that did come up: derivative-of-Gaussian filters for gradients (Sep 3), Gaussian vs. Laplacian pyramids (Sep 15), and "filtering changes intensity, warping changes coordinates" (Sep 8).
+- **Q2 — Harris corner detector properties.** `H` and its eigenvalue interpretation; response function; the three proofs (photometric, translation, rotation); why scale breaks invariance. All in [2026-09-03-corner-detection-sift.md](2026-09-03-corner-detection-sift.md), including a step-by-step rotation proof and a cheat-sheet table.
+- **Q3 — Matching evaluation and RANSAC.** TPR/FPR calculation; choosing a threshold for a target FPR; ROC/AUC; ratio test; RANSAC steps, sample sizes `s`, and the trial-count formula (derivation not required). See [2026-09-08-evaluation-and-image-warping.md](2026-09-08-evaluation-and-image-warping.md) and [2026-09-15-ransac-and-blending.md](2026-09-15-ransac-and-blending.md).
+- **Also fair game (professor-flagged):** `Ax = b` vs. `Ax = 0` and how many point pairs each transform needs; why parallel lines are not preserved by a homography; homogeneous-coordinate facts (`w = 0` is a point at infinity, `(0,0,0)` is not allowed).
+
+## Practice Problems With Worked Solutions
+
+*(Written by me for practice, in the style the professor described. They are not the professor's questions.)*
+
+**1. Photometric change.** `J = 2·I + 5`. Show how `H` changes, and by what factor the threshold on `R = det(H) − k·trace(H)²` must change for the detector to return the same corners.
+- `Jx = 2·Ix`, `Jy = 2·Iy` (the `+5` vanishes under differentiation), so `H_J = 4·H_I`.
+- Eigenvectors unchanged; eigenvalues × 4. `det` scales by `4² = 16` and `trace²` by `16`, so `R` scales by **16** (`a⁴` with `a = 2`). The threshold must be multiplied by 16.
+
+**2. TPR / FPR / precision.** A matcher returns 1000 matches; the oracle says 800 are good and 200 are bad. After thresholding, 650 remain, of which 560 are good.
+- `TP = 560`, `FP = 90`. `TPR = 560/800 = 0.70`, `FPR = 90/200 = 0.45`, precision `= 560/650 ≈ 0.86`.
+
+**3. Choosing a threshold.** Ten matches, sorted by distance, with oracle labels: `0.1 G, 0.2 G, 0.3 G, 0.4 B, 0.5 G, 0.6 B, 0.7 G, 0.8 B, 0.9 B, 1.0 B` (G = good, B = bad; 5 of each). Which threshold gives the highest TPR while keeping FPR ≤ 0.2? (Keep matches with distance ≤ threshold.)
+- `t = 0.3`: TP 3, FP 0 → TPR 0.6, FPR 0.
+- `t = 0.5`: TP 4, FP 1 → TPR 0.8, FPR 0.2. ✔
+- `t = 0.7`: TP 5, FP 2 → FPR 0.4, too high.
+- Answer: any `t` in `[0.5, 0.6)`; TPR = 0.8.
+
+**4. RANSAC trials.** A homography is fit to matches with a 30% outlier ratio. How many trials for 99% success?
+- `s = 4`, `e = 0.3`: `n = ln(0.01) / ln(1 − 0.7⁴) = −4.605 / −0.2746 ≈ 16.8 → 17`.
+
+**5. Minimum matches.** How many point pairs are needed for (a) translation, (b) affine, (c) homography? → **1, 3, 4** (2, 6, 8 degrees of freedom, 2 equations per pair).
+
+**6. Composition.** Apply "rotate 90° counter-clockwise, then translate by (2, 0)" to `(1, 0)`. → `(2, 1)`. Doing it in the opposite order gives `(0, 3)`, so order matters (worked out in the Sep 8 notes).
+
+**7. Parallel lines.** Explain why an affine map preserves parallelism but a homography does not. → Parallel lines meet at a point at infinity `(x, y, 0)`. An affine map keeps `w = 0`; a homography produces `w = gx + hy ≠ 0`, moving that point to a finite vanishing point.
+
+## Known Gaps In These Notes
+
+- **Filtering:** no lecture source (see above).
+- **Question 4:** by design it is a new "story" problem, so there is nothing to study directly. Practice explaining, in writing and with steps, how a concept you know (e.g. thresholds, outliers, invariance) applies to an unfamiliar scenario.
+- **Slides and practice midterm:** these notes come from audio transcripts, so equations the professor wrote on slides may be described imprecisely. Cross-check formulas against the slides.
+
 ## Related Class Material
 
 Full lecture notes referencing this exam's topics:

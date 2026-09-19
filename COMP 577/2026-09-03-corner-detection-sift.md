@@ -22,7 +22,24 @@ A **corner** is a location where sliding a small window `w` over the image produ
 
 ### Error function
 
-Sliding the window by `(u, v)` gives an error function measuring how much the windowed image content changes. Computing this directly for every pixel and every shift is computationally prohibitive, so we approximate it with a **Taylor series expansion**, which expresses the error in terms of image gradients.
+Sliding a window `w` by `(u, v)` and comparing to the original gives the error
+
+```
+E(u, v) = Σ_(x,y) w(x,y) · [ I(x+u, y+v) − I(x,y) ]²
+```
+
+- `w(x,y)` is the window function (all ones inside the window, or a Gaussian).
+- `E` stays small in every direction for a flat region, grows in one direction only for an edge, and grows in every direction for a corner.
+
+Evaluating `E` for every pixel and every `(u, v)` is computationally prohibitive, so we approximate it with a **first-order Taylor expansion** of the shifted image:
+
+```
+I(x+u, y+v) ≈ I(x,y) + Ix·u + Iy·v
+⇒ I(x+u, y+v) − I(x,y) ≈ Ix·u + Iy·v
+⇒ E(u,v) ≈ Σ w · (Ix·u + Iy·v)² = Σ w · (Ix²·u² + 2·Ix·Iy·uv + Iy²·v²)
+```
+
+The result is a quadratic in `(u, v)` whose coefficients depend only on gradients, which is exactly the matrix `H` below.
 
 This lets us rewrite the error as a **quadratic form** in `(u, v)`:
 
@@ -74,6 +91,18 @@ This is a tunable hyperparameter depending on the application/scene.
 5. Compute response `R` (or `f`).
 6. Threshold `R` to decide which points are corners.
 
+### Worked example: classifying a window from H
+
+Using `R = det(H) − k·trace(H)²` with `k = 0.05` (a typical value is 0.04–0.06; *the k range is standard background, not stated in lecture*):
+
+| Window | `H` | Eigenvalues | det | trace | `R` | Verdict |
+|---|---|---|---|---|---|---|
+| Corner-like | `[[10, 2], [2, 6]]` | 10.83, 5.17 | 56 | 16 | **+43.2** | large positive → corner |
+| Edge-like | `[[100, 0], [0, 1]]` | 100, 1 | 100 | 101 | **−410** | large negative → edge |
+| Flat | `[[0.5, 0], [0, 0.4]]` | 0.5, 0.4 | 0.2 | 0.9 | **+0.16** | near zero → flat |
+
+For the `f = det/trace` version: corner → 3.5, edge → 0.99, flat → 0.22. Note `det/trace = λ1λ2/(λ1+λ2)` is roughly `λmin` when one eigenvalue dominates, so an edge scores low relative to a corner.
+
 ## Properties: Invariance vs. Equivariance
 
 - **Invariance:** the detected point stays at the *exact same location* after a transformation.
@@ -108,6 +137,18 @@ Let the geometric transform map `(x,y) → (u,v)`.
 - **Translation:** `∂x/∂u = 1`, `∂y/∂u = 0` (and similarly for `v`) ⇒ `Ju = Ix`, `Jv = Iy` ⇒ `H_J = H_I` exactly. Fully invariant.
 - **Rotation:** using the chain rule, `H_J = Rᵀ · H_I · R` (`R` = rotation matrix). Since `R` is orthogonal, this means the eigenvectors of `H_J` are the eigenvectors of `H_I` rotated by `R`, while the **eigenvalues are unchanged**. Since eigenvalues determine whether a point is a corner, and eigenvectors just rotate, corners rotate consistently with the image — i.e., **equivariant**, not invariant. (Full derivation is a good chain-rule practice problem; the rotation proof is longer than the translation proof and won't appear as-is on the exam, but similar reasoning will.)
 
+### Rotation proof, step by step
+
+Setup: `J(u,v) = I(x,y)` where `[x, y]ᵀ = R·[u, v]ᵀ` and `R` is a 2×2 rotation matrix (orthogonal, so `RᵀR = I`). Intensity values are moved, not changed.
+
+1. Chain rule: `∂J/∂u = Ix·∂x/∂u + Iy·∂y/∂u`, and likewise for `v`. The four partials `∂x/∂u, ∂x/∂v, ∂y/∂u, ∂y/∂v` are exactly the entries of `R`.
+2. In vector form: `∇J = Rᵀ · ∇I`.
+3. The second moment matrix is a windowed sum of `∇J·∇Jᵀ`, so `H_J = Σ Rᵀ ∇I ∇Iᵀ R = Rᵀ · H_I · R`. (This assumes the window is rotation-symmetric, e.g. circular or Gaussian. *Standard caveat, not stated in lecture.*)
+4. Write `H_I = V Λ Vᵀ` (eigen-decomposition). Then `H_J = (RᵀV) Λ (RᵀV)ᵀ`, and since `RᵀV` is orthogonal this is a valid eigen-decomposition of `H_J`.
+5. Conclusion: the **eigenvalues `Λ` are identical**, so the corner/edge/flat decision at the corresponding point is identical; the **eigenvectors are rotated** by `R`. Corners therefore move with the image: **equivariance**, not invariance.
+
+Translation is the same argument with `∂x/∂u = 1`, `∂y/∂u = 0` (and likewise for `v`), giving `∇J = ∇I` and `H_J = H_I`.
+
 ### Scale: not invariant/equivariant
 
 A "corner" depends on the window size relative to the feature. A curve viewed with a large window can look like a corner; the same curve stretched out (or viewed with a small window) can look like a straight edge. So Harris corner response at a **fixed scale** is not reliable across scale changes — the response depends on what window size is used.
@@ -125,6 +166,15 @@ A filter whose scale (`σ`) can be varied to compute this response efficiently, 
 ### Difference of Gaussians (DoG)
 
 Subtracting two Gaussian-blurred versions of the image (at different `σ`) numerically **approximates** the Laplacian of Gaussian, and is much cheaper to compute. (Note: "DoG" is *difference* of Gaussians, not a derivative.)
+
+### Formulas for scale space
+
+- Gaussian: `G_σ(x,y) = (1 / 2πσ²) · exp(−(x² + y²) / 2σ²)`.
+- Laplacian of Gaussian: `LoG = ∇²G_σ`. Its response peaks when the filter size `σ` matches the size of the blob or corner, so sweeping `σ` gives the response across scales.
+- Difference of Gaussians: `DoG = G_kσ − G_σ ≈ (k − 1)·σ²·∇²G_σ`. DoG therefore approximates LoG up to a constant factor, using only Gaussian blurs and a subtraction.
+- Scale selection: for each pixel, look through the stack of DoG images and keep the scale where the response is a maximum **and** above the threshold.
+
+*(These are standard formulas; the lecture described the LoG/DoG relationship qualitatively.)*
 
 ## SIFT (Scale-Invariant Feature Transform)
 
@@ -153,6 +203,8 @@ For each detected keypoint:
 - Invariant to translation/rotation/intensity shifts (same proof style as detector invariance).
 - Robust to moderate 3D viewpoint (camera rotation) changes.
 - Robust to moderate lighting changes (localized shadow movement doesn't change the overall distribution much).
+
+**Standard detail behind the 128 numbers** *(background; the lecture only said "more cells and bins in practice")*: the 16×16 patch is split into a 4×4 grid of cells; each cell gets an 8-bin orientation histogram (weighted by gradient magnitude), giving 4 × 4 × 8 = 128 dimensions. In practice SIFT also rotates the patch to align with the keypoint's dominant gradient orientation and normalizes the vector, which is what provides rotation and brightness robustness.
 
 ### Output of SIFT
 
@@ -209,3 +261,18 @@ These are the same concepts used later in the course for ML/deep-learning classi
 
 - Practice exam questions and worked homework/exam solutions will be provided — try problems using hints first before consulting the solution.
 - Office hours today from 5.
+
+## Quick Reference (cheat-sheet material)
+
+| Item | Formula / fact |
+|---|---|
+| Error | `E(u,v) = Σ w [I(x+u,y+v) − I(x,y)]² ≈ [u v] H [u v]ᵀ` |
+| `H` | `Σ w · [[Ix², IxIy], [IxIy, Iy²]]` (**keep the sum over the window**) |
+| Classification | corner: `λ1, λ2` both large and comparable; edge: one ≫ other; flat: both small |
+| Response | `R = det(H) − k·trace(H)²`, or `f = det(H)/trace(H)` |
+| Photometric `J = aI + b` | `H_J = a²·H_I`: same eigenvectors, eigenvalues × `a²`. Threshold on `det − k·tr²` scales by `a⁴`; on `det/trace` by `a²`. Invariant only if the threshold is rescaled. |
+| Translation | `H_J = H_I` (invariant) |
+| Rotation | `H_J = Rᵀ H_I R` (equivariant; same eigenvalues, rotated eigenvectors) |
+| Scale | Harris is neither invariant nor equivariant → pick the scale with DoG/LoG maxima |
+| SIFT | keypoint = `(x, y, scale)` + 128-D histogram-of-gradients descriptor |
+| Matching | k = 2 nearest neighbors + ratio test (best ≥ ~25% better than second-best) |

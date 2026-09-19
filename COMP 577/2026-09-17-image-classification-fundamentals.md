@@ -87,6 +87,20 @@ The diagonal (TP, TN) is what we want to maximize. The off-diagonal (FP, FN) is 
   - Nuclear facility face recognition → very low FPR (high precision).
   - Undergraduate lounge access → false positives matter little; favor recall.
 
+### Worked example: all the binary metrics from one table
+
+Reusing the feature-matching numbers: 800 actual positives, 200 actual negatives, and a threshold that leaves `TP = 600`, `FP = 100`, `FN = 200`, `TN = 100`.
+
+| Metric | Formula | Value |
+|---|---|---|
+| Precision | `TP / (TP + FP)` | 600 / 700 = **0.857** |
+| Recall / TPR | `TP / (TP + FN)` | 600 / 800 = **0.75** |
+| FPR | `FP / (FP + TN)` | 100 / 200 = **0.50** |
+| F1 | `2·P·R / (P + R)` | **0.80** |
+| Accuracy | `(TP + TN) / total` | 700 / 1000 = **0.70** |
+
+Accuracy can mislead on imbalanced data: with 99% negatives, a classifier that always says "negative" scores 99% accuracy but has recall 0. That is why the lecture stresses class balance and per-class metrics.
+
 ### Multi-class: confusion matrix
 
 - Rows = **true class**, columns = **predicted class**.
@@ -165,6 +179,17 @@ Total loss = the **average of the per-example loss** over all training data, com
 - Only the probability assigned to the **correct** class matters. Calling a cat a dog is penalized the same as calling it a ship. You could design a loss that penalizes plausible mistakes less, but the basic version does not.
 - **Regularization:** add a term that discourages very large weights. Scaling `W` up does not change the hyperplane, so this keeps learning focused on the actual goal rather than inflating weight magnitudes.
 
+### Worked example: softmax and cross-entropy
+
+Suppose the linear classifier outputs raw scores for `[cat, dog, ship] = [3.2, 5.1, −1.7]`.
+
+1. Exponentiate: `[e^3.2, e^5.1, e^−1.7] = [24.5, 164.0, 0.18]`; the sum is 188.7.
+2. Normalize: probabilities `= [0.13, 0.87, 0.001]`, which sum to 1.
+3. If the true label is **cat**, the cross-entropy loss is `−ln(0.13) ≈ 2.04` (large: the model was confident and wrong). If the model had given cat 0.9, the loss would be `−ln(0.9) ≈ 0.105`.
+4. Check of the "cat vs. ship" remark: the loss depends only on the probability of the true class, so putting the leftover probability on dog or on ship costs the same.
+
+**Why negative log likelihood:** for independent training samples the likelihood is `∏ P(yᵢ | xᵢ)`. Taking the log turns the product into a sum, `Σ log P(yᵢ | xᵢ)`; negating turns "maximize" into "minimize", and averaging over the data gives the cross-entropy loss. So minimizing cross-entropy *is* maximum likelihood estimation.
+
 ### Optimization for a linear classifier
 
 - As presented in the lecture: take the loss's partial derivatives with respect to `W` and `b`, set them to zero, and solve for a closed-form solution. This is why linear classifiers are considered "easy".
@@ -179,6 +204,16 @@ Total loss = the **average of the per-example loss** over all training data, com
 - Example sizing from the lecture: a 3072-dimensional input → 100-D hidden layer → 10 outputs. `W₁` is 100 × 3072 and `W₂` is 10 × 100, so the parameter count is the sum of those entries.
 - **Network diagram:** input nodes, hidden nodes, and arrows. Each arrow is one entry of a weight matrix (e.g. a 3-input → 4-hidden layer has a 3 × 4 `W₁`; one arrow might have weight 0.3).
 - **Training** uses the same cross-entropy loss, but now the loss is a function of many weight matrices (`W₁`, `W₂`, …), so setting derivatives to zero no longer gives a neat solution. That is where **gradient descent** comes in.
+
+## Worked Details
+
+- **Why stacking linear layers without nonlinearity is pointless:** `W₂(W₁x) = (W₂W₁)x`, and `W₂W₁` is just one matrix, so two linear layers equal one linear layer. With a nonlinearity `σ`, `W₂·σ(W₁x)` cannot be collapsed.
+- **Parameter count for the lecture's example** (3072-D input, 100 hidden units, 10 classes; 3072 = 32 × 32 × 3 pixels):
+  - Layer 1: `100 × 3072 + 100 (biases) = 307,300`
+  - Layer 2: `10 × 100 + 10 (biases) = 1,010`
+  - Total: **308,310 parameters**
+- **k-NN cost:** with `N = 1,000,000` training examples and `d = 128`, one test query needs about `N · d ≈ 1.28 × 10⁸` multiply-adds, and it must be paid for *every* test sample. A linear classifier needs only `classes × d` operations per sample.
+- **Hyperplane geometry** *(standard background)*: the decision boundary between two classes is where their scores tie, `(wᵢ − wⱼ)·x + (bᵢ − bⱼ) = 0`; the weight vector is the normal to that hyperplane, and `|w·x + b| / ‖w‖` is the distance from `x` to it.
 
 ## Next Up
 

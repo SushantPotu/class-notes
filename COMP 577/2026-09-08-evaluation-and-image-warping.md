@@ -63,6 +63,23 @@ Rather than committing to one threshold, plot **TPR (y-axis) vs. FPR (x-axis)** 
 1. Given a threshold, compute TPR and FPR.
 2. Given a target FPR (e.g. < 0.1), determine what threshold achieves it.
 
+### Worked example: sweeping the threshold to trace an ROC curve
+
+*(Illustrative numbers, extending the 800-good / 200-bad example above; the 0.6 row is the one from lecture.)*
+
+| Threshold | TP | FP | TPR = TP/800 | FPR = FP/200 |
+|---|---|---|---|---|
+| 0.0 | 0 | 0 | 0.000 | 0.00 |
+| 0.2 | 300 | 10 | 0.375 | 0.05 |
+| 0.4 | 500 | 40 | 0.625 | 0.20 |
+| 0.6 | 600 | 100 | 0.750 | 0.50 |
+| 0.8 | 740 | 160 | 0.925 | 0.80 |
+| 1.0 | 800 | 200 | 1.000 | 1.00 |
+
+- Plot each `(FPR, TPR)` pair and connect them: the curve rises well above the diagonal, so this matcher beats random guessing.
+- Area under the curve by the trapezoid rule ≈ **0.73**.
+- **Exam-style question:** "the false positive rate must be at most 0.1; which threshold do you choose?" → 0.2 (FPR 0.05, TPR 0.375). Threshold 0.4 has FPR 0.20, which violates the requirement. In general, pick the **largest threshold whose FPR still meets the requirement**, since that gives the highest TPR.
+
 ### Aside: SuperPoint / SuperGlue vs. classical matching
 
 Neural-network-based detection+matching (SuperPoint for detection, SuperGlue for matching) produces many more correct matches than classical methods (SIFT + brute-force/ratio test) when there is **large geometric change** between images (e.g. fast camera rotation). Classical methods still get a *few* good matches but very sparse — insufficient when large transformations are involved (e.g. panorama frames captured with significant rotation between shots). Practical implication for building a panorama: keep rotation between consecutive captures small (similar to how phone panorama modes require slow, steady motion) — too much geometric change between frames breaks matching.
@@ -155,6 +172,54 @@ x̂ = (ax + by + c) / (gx + hy + 1)
 - The bottom-right entry doesn't need to be fixed at exactly `1` — any nonzero constant `k` there is equivalent (it factors out of both numerator and denominator), since only the *direction*/ratio of the homogeneous vector matters, not its absolute scale.
 
 **Key property that breaks under homography:** parallel lines no longer remain parallel after transformation. Classic example: a photograph of railway tracks — physically parallel tracks converge toward a vanishing point in the 2D image, because the mapping from the 3D/ground plane to the image plane is a homography. (Some of these properties are provable in a couple of lines with the right approach, vs. pages of brute-force algebra — worth practicing efficient proofs, since this will likely be a homework/exam topic.)
+
+## Worked Examples and Proofs (added for exam practice)
+
+### Degrees of freedom summary
+
+Each point pair gives 2 equations, so the minimum number of pairs is DoF / 2.
+
+| Transform | Homogeneous matrix | DoF | Min. point pairs |
+|---|---|---|---|
+| Translation | `[[1,0,tx],[0,1,ty],[0,0,1]]` | 2 | 1 |
+| Linear (2×2) | `[[a,b,0],[c,d,0],[0,0,1]]` | 4 | 2 |
+| Affine | `[[a,b,c],[d,e,f],[0,0,1]]` | 6 | 3 |
+| Homography | `[[a,b,c],[d,e,f],[g,h,1]]` | 8 | 4 |
+
+### Where the rotation matrix comes from
+
+Write a point in polar form `(x, y) = (r·cos φ, r·sin φ)`. Rotating by `θ` gives `(r·cos(φ+θ), r·sin(φ+θ))`. Expanding with the angle-sum identities:
+
+```
+x̂ = r·cos φ·cos θ − r·sin φ·sin θ = x·cos θ − y·sin θ
+ŷ = r·sin φ·cos θ + r·cos φ·sin θ = x·sin θ + y·cos θ
+```
+
+which is `[x̂, ŷ]ᵀ = [[cos θ, −sin θ], [sin θ, cos θ]] · [x, y]ᵀ`.
+
+### Order of operations matters (numeric example)
+
+Take `p = (1, 0)`, `R` = rotate 90° counter-clockwise (`(x,y) → (−y, x)`), `T` = translate by `(2, 0)`.
+
+- Rotate, then translate: `R·p = (0, 1)`, then `+ (2, 0)` → **(2, 1)**.
+- Translate, then rotate: `p + (2, 0) = (3, 0)`, then `R` → **(0, 3)**.
+
+In matrix form, transformations apply right-to-left, so "rotate then translate" is `M = T·R`:
+
+```
+T·R = [[1,0,2],[0,1,0],[0,0,1]] · [[0,−1,0],[1,0,0],[0,0,1]] = [[0,−1,2],[1,0,0],[0,0,1]]
+M·(1, 0, 1)ᵀ = (2, 1, 1)ᵀ  →  (2, 1)
+```
+
+### Short proof: parallel lines survive affine maps but not homographies
+
+*(Worked out from the "point at infinity" recap; the professor said a two-line proof exists.)*
+
+Two lines are parallel exactly when their homogeneous intersection has `w = 0`, i.e. they meet at a point at infinity `(x, y, 0)`, where `(x, y)` is the shared direction.
+
+- **Affine** (bottom row `[0 0 1]`): `A·(x, y, 0)ᵀ = (ax + by, dx + ey, 0)ᵀ`. The last coordinate stays 0, so the images of the lines still meet at infinity: **still parallel**.
+- **Homography** (bottom row `[g h 1]`): `H·(x, y, 0)ᵀ = (ax + by, dx + ey, gx + hy)ᵀ`. Unless `gx + hy = 0`, the last coordinate is nonzero, so the point at infinity maps to a **finite point** (a vanishing point) and the lines converge. This is the railway-track picture.
+- The origin: for a linear map `(0,0,1)ᵀ → (0,0,1)ᵀ`; for an affine map `(0,0,1)ᵀ → (c, f, 1)ᵀ`, so a translation moves the origin.
 
 ## Next Class
 

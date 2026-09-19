@@ -24,6 +24,26 @@ Two ways of setting up the estimation problem, depending on transformation type:
 - In practice: the optimal solution is the **singular vector corresponding to the smallest singular value of `A`** (via SVD), equivalently the **eigenvector corresponding to the smallest eigenvalue of `AᵀA`**. Eigen-decomposition is typically used in practice since it's faster.
 - **You don't need to reproduce every step of this derivation** — what matters is recognizing *which* formulation (`Ax = b` vs `Ax = 0`) applies to a given problem, and why.
 
+### Setting up the matrices explicitly
+
+**Affine.** With `x̂ = a·x + b·y + c` and `ŷ = d·x + e·y + f`, each correspondence `(xᵢ, yᵢ) → (x̂ᵢ, ŷᵢ)` contributes two rows for the unknown vector `p = [a b c d e f]ᵀ`:
+
+```
+[ xᵢ  yᵢ  1   0   0   0 ] · p = x̂ᵢ
+[  0   0   0  xᵢ  yᵢ  1 ] · p = ŷᵢ
+```
+
+With `n ≥ 3` pairs, `A` is `2n × 6` and `b` stacks the `x̂ᵢ, ŷᵢ`. Solve `p = (AᵀA)⁻¹Aᵀb` (in code, a least-squares solver).
+
+**Homography.** With `x̂ = (h1·x + h2·y + h3) / (h7·x + h8·y + h9)` and similarly for `ŷ`, cross-multiplying to remove the denominator gives two rows per correspondence:
+
+```
+[ x  y  1  0  0  0  −x̂·x  −x̂·y  −x̂ ] · h = 0
+[ 0  0  0  x  y  1  −ŷ·x  −ŷ·y  −ŷ ] · h = 0
+```
+
+Stack `n ≥ 4` pairs into a `2n × 9` matrix `A` and solve `A·h = 0` subject to `‖h‖ = 1` (without a constraint, `h = 0` is a trivial solution). The answer is the **right singular vector for the smallest singular value** of `A` (equivalently the smallest eigenvector of `AᵀA`); reshape it to 3×3 and, if you like, divide by `h9` so the bottom-right entry is 1. *(This 9-unknown form with a norm constraint is the standard implementation of the lecture's "8 unknowns, `Ax = 0`" idea.)*
+
 ### When to use affine vs. homography
 
 - **Homography** is the correct transformation between two images of the same **planar (2D) scene captured from different positions in 3D space** — i.e., when the camera itself moves/rotates such that its image plane is not the same between the two shots.
@@ -54,6 +74,19 @@ A general statistical method for fitting a model in the presence of outliers —
 5. Keep the model/sample-set with the **largest inlier count**.
 6. **Recompute the final model using all inliers** from the winning round (not just the original minimal sample) — this refines the estimate since it now uses more data than the minimal fitting set.
 
+### RANSAC pseudocode
+
+```
+best_inliers = []
+repeat n times:
+    sample  = random s point pairs
+    model   = fit(sample)                      # Ax = b (affine) or Ax = 0 via SVD (homography)
+    inliers = [pair for pair in all_pairs if error(model, pair) < threshold]
+    if len(inliers) > len(best_inliers):
+        best_inliers = inliers
+final_model = fit(best_inliers)                # refit on ALL inliers of the best round
+```
+
 ### Worked example (translation from noisy matches)
 
 Given 7 matched point pairs (5 good, 2 bad, though we don't know which up front):
@@ -81,6 +114,19 @@ Intuition for the derivation: to fail, *every* one of the `n` trials must includ
 - 10% outlier ratio → only ~5 trials needed.
 - 50% outlier ratio → ~72 trials needed.
 - Required trials grow quickly with both outlier ratio and model complexity (`s`), and grow further if you require a higher success probability (e.g. 99.99%).
+
+**Formula:** `n = ⌈ ln(1 − p) / ln(1 − (1 − e)ˢ) ⌉`, where `p` is the target success probability, `e` the outlier ratio, and `s` the sample size.
+
+**Trials needed for `p = 0.99`:**
+
+| `s` (model) | e = 10% | e = 30% | e = 50% | e = 70% |
+|---|---|---|---|---|
+| 1 (translation) | 2 | 4 | 7 | 13 |
+| 2 (line) | 3 | 7 | 17 | 49 |
+| 3 (affine) | 4 | 11 | 35 | 169 |
+| 4 (homography) | 5 | 17 | 72 | 567 |
+
+Hand check for homography at `e = 0.3`: `(0.7)⁴ = 0.2401`, so `1 − 0.2401 = 0.7599`, and `ln(0.01) / ln(0.7599) = −4.605 / −0.2746 ≈ 16.8 → 17` trials. The 5 and 72 quoted in lecture match the `e = 10%` and `e = 50%` cells.
 
 ### Why RANSAC works: intuition
 
@@ -118,6 +164,11 @@ final_weight_2 = w2 / (w1 + w2)
 ```
 
 Skipping normalization distorts pixel intensity, since you'd be summing partial intensities that don't add up to a full-intensity blend.
+
+**Numeric example:** raw weights `w1 = 0.8`, `w2 = 0.3`, intensities `I1 = 200`, `I2 = 100`.
+
+- Normalized: `(0.8·200 + 0.3·100) / (0.8 + 0.3) = 190 / 1.1 ≈ 172.7`, a sensible value between 100 and 200.
+- Unnormalized: `0.8·200 + 0.3·100 = 190`; the weights sum to 1.1, so the pixel comes out about 10% too bright, and this varies across the seam, leaving visible banding.
 
 ### Stitching order for multiple images
 
